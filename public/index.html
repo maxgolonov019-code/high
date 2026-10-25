@@ -88,7 +88,8 @@ input:focus {
   letter-spacing: -2px;
 }
 
-.logo span {
+.logo span,
+.brand span {
   color: var(--accent);
 }
 
@@ -137,10 +138,6 @@ input:focus {
   font-size: 27px;
   font-weight: 800;
   padding: 5px 0;
-}
-
-.brand span {
-  color: var(--accent);
 }
 
 .userline {
@@ -332,20 +329,24 @@ video {
     <p class="muted">Твоя связь. Без лишнего.</p>
 
     <form id="authForm" class="stack">
-      <input id="username"
+      <input
+        id="username"
         placeholder="Имя пользователя"
         minlength="3"
         maxlength="24"
         autocomplete="username"
-        required>
+        required
+      >
 
-      <input id="password"
+      <input
+        id="password"
         type="password"
         placeholder="Пароль"
         minlength="8"
         maxlength="128"
         autocomplete="current-password"
-        required>
+        required
+      >
 
       <div class="auth-actions">
         <button type="submit" id="loginBtn">Войти</button>
@@ -354,7 +355,7 @@ video {
         </button>
       </div>
 
-      <div id="authError"></div>
+      <div id="authError" role="alert"></div>
     </form>
   </div>
 </section>
@@ -368,28 +369,32 @@ video {
       <strong id="myName"></strong>
     </div>
 
-    <input id="search" placeholder="Найти пользователя...">
+    <input
+      id="search"
+      placeholder="Найти пользователя..."
+      autocomplete="off"
+    >
 
     <div id="users"></div>
 
-    <button id="logoutBtn"
-      style="background:#282e40">
+    <button id="logoutBtn" style="background:#282e40">
       Выйти из аккаунта
     </button>
   </aside>
 
   <main class="chat">
     <header class="chat-header">
-      <button id="backBtn" class="hidden"
-        style="background:#282e40">←</button>
+      <button
+        id="backBtn"
+        class="hidden"
+        style="background:#282e40"
+      >←</button>
 
       <strong id="chatName">Выбери собеседника</strong>
 
       <div class="call-buttons">
-        <button id="audioBtn" title="Аудиозвонок"
-          disabled>☎</button>
-        <button id="videoBtn" title="Видеозвонок"
-          disabled>▣</button>
+        <button id="audioBtn" title="Аудиозвонок" disabled>☎</button>
+        <button id="videoBtn" title="Видеозвонок" disabled>▣</button>
       </div>
     </header>
 
@@ -400,11 +405,13 @@ video {
     </div>
 
     <form id="composer" class="composer">
-      <input id="messageInput"
+      <input
+        id="messageInput"
         maxlength="4000"
         placeholder="Напиши сообщение..."
         autocomplete="off"
-        disabled>
+        disabled
+      >
 
       <button id="sendBtn" disabled>➤</button>
     </form>
@@ -413,22 +420,15 @@ video {
       <div id="callStatus">Звонок</div>
 
       <div id="videos">
-        <video id="remoteVideo"
-          autoplay playsinline></video>
-
-        <video id="localVideo"
-          autoplay muted playsinline></video>
+        <video id="remoteVideo" autoplay playsinline></video>
+        <video id="localVideo" autoplay muted playsinline></video>
       </div>
 
       <div id="callActions">
-        <button id="acceptBtn" class="hidden">
-          Принять
-        </button>
-
+        <button id="acceptBtn" class="hidden">Принять</button>
         <button id="declineBtn" class="danger hidden">
           Отклонить
         </button>
-
         <button id="hangupBtn" class="danger">
           Завершить звонок
         </button>
@@ -437,7 +437,7 @@ video {
   </main>
 </section>
 
-<div id="notice" class="hidden"></div>
+<div id="notice" class="hidden" role="status"></div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
@@ -452,6 +452,8 @@ let peer = null;
 let pendingOffer = null;
 let queuedCandidates = [];
 let noticeTimer = null;
+let searchTimer = null;
+let authBusy = false;
 
 const rtcConfig = {
   iceServers: [
@@ -465,6 +467,7 @@ function showNotice(message) {
   $("notice").classList.remove("hidden");
 
   clearTimeout(noticeTimer);
+
   noticeTimer = setTimeout(() => {
     $("notice").classList.add("hidden");
   }, 3500);
@@ -473,10 +476,10 @@ function showNotice(message) {
 async function api(url, options = {}) {
   const response = await fetch(url, {
     credentials: "same-origin",
+    cache: "no-store",
     ...options,
     headers: {
-      "Content-Type": "application/json",
-      ...options.headers
+      ...(options.headers || {})
     }
   });
 
@@ -492,6 +495,7 @@ async function api(url, options = {}) {
 function showAuth() {
   $("auth").classList.remove("hidden");
   $("app").classList.add("hidden");
+  $("app").classList.remove("in-chat");
 }
 
 function showApp() {
@@ -500,22 +504,86 @@ function showApp() {
   $("myName").textContent = me.username;
 }
 
+function resetChatUI() {
+  activeUser = null;
+
+  $("users").replaceChildren();
+  $("messages").replaceChildren();
+
+  const hint = document.createElement("div");
+  hint.className = "muted";
+  hint.textContent = "Найди пользователя, чтобы начать общение.";
+
+  $("messages").appendChild(hint);
+
+  $("search").value = "";
+  $("messageInput").value = "";
+  $("messageInput").disabled = true;
+  $("sendBtn").disabled = true;
+  $("audioBtn").disabled = true;
+  $("videoBtn").disabled = true;
+
+  $("chatName").textContent = "Выбери собеседника";
+  $("backBtn").classList.add("hidden");
+
+  $("app").classList.remove("in-chat");
+}
+
+async function disconnectCurrentSession() {
+  await endCall(false);
+
+  if (socket) {
+    socket.removeAllListeners();
+    socket.disconnect();
+    socket = null;
+  }
+
+  resetChatUI();
+}
+
+// -----------------------------
+// Вход и регистрация
+// -----------------------------
+
 async function authenticate(mode) {
+  if (authBusy) return;
+
+  authBusy = true;
+
+  $("loginBtn").disabled = true;
+  $("registerBtn").disabled = true;
   $("authError").textContent = "";
 
   try {
+    const username = $("username").value.trim();
+    const password = $("password").value;
+
     const data = await api("/api/" + mode, {
       method: "POST",
-      body: JSON.stringify({
-        username: $("username").value.trim(),
-        password: $("password").value
-      })
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ username, password })
     });
 
-    me = data.user;
+    // Сервер уже установил cookie нового аккаунта.
+    // Отключаем старую сессию и сбрасываем прежний интерфейс.
+    await disconnectCurrentSession();
+
+    me = {
+      id: String(data.user.id),
+      username: data.user.username
+    };
+
+    $("password").value = "";
+
     await enterApp();
   } catch (error) {
     $("authError").textContent = error.message;
+  } finally {
+    authBusy = false;
+    $("loginBtn").disabled = false;
+    $("registerBtn").disabled = false;
   }
 }
 
@@ -528,13 +596,28 @@ $("registerBtn").addEventListener("click", () => {
   authenticate("register");
 });
 
+// -----------------------------
+// Запуск пользовательской сессии
+// -----------------------------
+
 async function enterApp() {
+  // Проверяем, что сервер видит именно текущий аккаунт.
+  const data = await api("/api/me");
+
+  me = {
+    id: String(data.user.id),
+    username: data.user.username
+  };
+
   showApp();
 
-  socket = io();
+  socket = io({
+    withCredentials: true,
+    reconnection: true
+  });
 
   socket.on("connect_error", error => {
-    showNotice("Соединение: " + error.message);
+    showNotice("Ошибка соединения: " + error.message);
   });
 
   socket.on("message:new", message => {
@@ -554,20 +637,41 @@ async function enterApp() {
   await searchUsers("");
 }
 
-$("logoutBtn").addEventListener("click", async () => {
-  await endCall(false);
+async function logout() {
+  if (authBusy) return;
 
-  if (socket) socket.disconnect();
+  authBusy = true;
+  $("logoutBtn").disabled = true;
 
   try {
-    await api("/api/logout", { method: "POST" });
-  } catch {}
+    // Сначала сбрасываем текущую сессию интерфейса.
+    await disconnectCurrentSession();
 
-  me = null;
-  activeUser = null;
-  socket = null;
-  showAuth();
-});
+    // Затем удаляем cookie на сервере.
+    await api("/api/logout", {
+      method: "POST"
+    });
+
+    me = null;
+
+    $("username").value = "";
+    $("password").value = "";
+    $("authError").textContent = "";
+
+    showAuth();
+  } catch (error) {
+    showNotice(error.message || "Не удалось выйти.");
+  } finally {
+    authBusy = false;
+    $("logoutBtn").disabled = false;
+  }
+}
+
+$("logoutBtn").addEventListener("click", logout);
+
+// -----------------------------
+// Поиск пользователей
+// -----------------------------
 
 async function searchUsers(query) {
   try {
@@ -594,8 +698,6 @@ async function searchUsers(query) {
   }
 }
 
-let searchTimer = null;
-
 $("search").addEventListener("input", event => {
   clearTimeout(searchTimer);
 
@@ -604,17 +706,25 @@ $("search").addEventListener("input", event => {
   }, 250);
 });
 
+// -----------------------------
+// Чаты и сообщения
+// -----------------------------
+
 async function openChat(user) {
   if (call && call.userId !== user.id) {
     showNotice("Сначала заверши текущий звонок.");
     return;
   }
 
-  activeUser = user;
+  activeUser = {
+    id: String(user.id),
+    username: user.username
+  };
 
   $("app").classList.add("in-chat");
   $("backBtn").classList.remove("hidden");
-  $("chatName").textContent = user.username;
+
+  $("chatName").textContent = activeUser.username;
   $("messageInput").disabled = false;
   $("sendBtn").disabled = false;
   $("audioBtn").disabled = false;
@@ -625,7 +735,15 @@ async function openChat(user) {
   $("messages").replaceChildren();
 
   try {
-    const data = await api("/api/messages/" + user.id);
+    const data = await api(
+      "/api/messages/" + encodeURIComponent(activeUser.id)
+    );
+
+    // Не показываем историю другого чата, если пользователь
+    // успел выбрать другого собеседника во время загрузки.
+    if (!activeUser || activeUser.id !== String(user.id)) {
+      return;
+    }
 
     for (const message of data.messages) {
       renderMessage(message);
@@ -651,9 +769,9 @@ function renderMessage(message) {
     return;
   }
 
-  const list = $("messages");
-
-  if (list.querySelector('[data-id="' + message.id + '"]')) {
+  if ($("messages").querySelector(
+    '[data-id="' + CSS.escape(message.id) + '"]'
+  )) {
     return;
   }
 
@@ -665,15 +783,16 @@ function renderMessage(message) {
   bubble.dataset.id = message.id;
   bubble.textContent = message.body;
 
-  list.appendChild(bubble);
-  list.scrollTop = list.scrollHeight;
+  $("messages").appendChild(bubble);
+  $("messages").scrollTop = $("messages").scrollHeight;
 }
 
 $("composer").addEventListener("submit", event => {
   event.preventDefault();
 
   if (!activeUser || !socket?.connected) {
-    return showNotice("Нет соединения с сервером.");
+    showNotice("Нет соединения с сервером.");
+    return;
   }
 
   const body = $("messageInput").value.trim();
@@ -686,12 +805,13 @@ $("composer").addEventListener("submit", event => {
     receiverId: activeUser.id,
     body
   }, (error, result) => {
-    $("sendBtn").disabled = false;
+    $("sendBtn").disabled = !activeUser;
 
     if (error || !result?.ok) {
-      return showNotice(
+      showNotice(
         result?.error || "Не удалось отправить сообщение."
       );
+      return;
     }
 
     $("messageInput").value = "";
@@ -700,7 +820,7 @@ $("composer").addEventListener("submit", event => {
 });
 
 // -----------------------------
-// Настоящие WebRTC-звонки
+// Аудио- и видеозвонки WebRTC
 // -----------------------------
 
 function sendSignal(to, type, payload = null) {
@@ -721,10 +841,9 @@ async function getMedia(video) {
 
   return navigator.mediaDevices.getUserMedia({
     audio: true,
-    video: video ? {
-      width: { ideal: 1280 },
-      height: { ideal: 720 }
-    } : false
+    video: video
+      ? { width: { ideal: 1280 }, height: { ideal: 720 } }
+      : false
   });
 }
 
@@ -759,15 +878,15 @@ async function preparePeer() {
 
     if (peer.connectionState === "failed") {
       showNotice(
-        "Не удалось соединить устройства. Может понадобиться TURN."
+        "Соединение не удалось. Возможно, нужен TURN-сервер."
       );
     }
   };
 
   if (localStream) {
-    localStream.getTracks().forEach(track => {
+    for (const track of localStream.getTracks()) {
       peer.addTrack(track, localStream);
-    });
+    }
 
     $("localVideo").srcObject = localStream;
   }
@@ -777,13 +896,13 @@ async function startCall(video) {
   if (!activeUser || call) return;
 
   if (!socket?.connected) {
-    return showNotice("Нет соединения с сервером.");
+    showNotice("Нет соединения с сервером.");
+    return;
   }
 
-  const target = activeUser;
+  const target = { ...activeUser };
 
   try {
-    // Сначала получаем разрешение на микрофон/камеру
     localStream = await getMedia(video);
 
     call = {
@@ -793,11 +912,14 @@ async function startCall(video) {
       incoming: false
     };
 
-    showCall("Вызов " + target.username + "…");
-    $("acceptBtn").classList.add("hidden");
-    $("declineBtn").classList.add("hidden");
     $("localVideo").classList.toggle("hidden", !video);
     $("remoteVideo").classList.toggle("hidden", !video);
+
+    $("acceptBtn").classList.add("hidden");
+    $("declineBtn").classList.add("hidden");
+    $("hangupBtn").classList.remove("hidden");
+
+    showCall("Вызов " + target.username + "…");
 
     await preparePeer();
 
@@ -864,7 +986,7 @@ async function handleCallSignal(data) {
         await peer.setRemoteDescription(data.payload);
         await flushCandidates();
         showCall("Соединяем устройства…");
-      } catch (error) {
+      } catch {
         showNotice("Ошибка подключения звонка.");
       }
     }
@@ -918,8 +1040,13 @@ $("acceptBtn").addEventListener("click", async () => {
 
     await preparePeer();
 
+    // Ждём, пока offer действительно придёт через Socket.IO.
+    for (let i = 0; i < 50 && !pendingOffer; i++) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
     if (!pendingOffer) {
-      throw new Error("Предложение звонка ещё не получено.");
+      throw new Error("Не получено предложение звонка.");
     }
 
     await peer.setRemoteDescription(pendingOffer);
@@ -950,13 +1077,15 @@ $("hangupBtn").addEventListener("click", () => endCall(true));
 async function endCall(notify) {
   const oldCall = call;
 
-  if (notify && oldCall) {
-    sendSignal(oldCall.userId, "ended");
-  }
-
+  // Сначала сбрасываем состояние, чтобы поздние события
+  // не продолжили работу старого звонка.
   call = null;
   pendingOffer = null;
   queuedCandidates = [];
+
+  if (notify && oldCall && socket?.connected) {
+    sendSignal(oldCall.userId, "ended");
+  }
 
   if (peer) {
     peer.ontrack = null;
@@ -979,15 +1108,26 @@ async function endCall(notify) {
   $("hangupBtn").classList.remove("hidden");
 }
 
+// -----------------------------
+// Восстановление сессии
+// -----------------------------
+
 (async function init() {
   try {
     const data = await api("/api/me");
-    me = data.user;
+
+    me = {
+      id: String(data.user.id),
+      username: data.user.username
+    };
+
     await enterApp();
   } catch {
+    me = null;
     showAuth();
   }
 })();
 </script>
+
 </body>
 </html>
