@@ -1,0 +1,993 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>High — мессенджер</title>
+
+<style>
+* {
+  box-sizing: border-box;
+}
+
+:root {
+  color-scheme: dark;
+  --bg: #0a0c12;
+  --panel: #111521;
+  --panel2: #191f2e;
+  --accent: #8b7cff;
+  --text: #f4f5ff;
+  --muted: #9299ad;
+  --border: #292f40;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px Arial, sans-serif;
+}
+
+button, input {
+  font: inherit;
+}
+
+button {
+  border: 0;
+  border-radius: 12px;
+  padding: 12px 15px;
+  background: var(--accent);
+  color: white;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: .5;
+  cursor: default;
+}
+
+input {
+  width: 100%;
+  min-width: 0;
+  padding: 13px;
+  color: var(--text);
+  background: var(--panel2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  outline: none;
+}
+
+input:focus {
+  border-color: var(--accent);
+}
+
+.hidden {
+  display: none !important;
+}
+
+#auth {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 390px;
+  padding: 28px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+}
+
+.logo {
+  font-size: 35px;
+  font-weight: 800;
+  letter-spacing: -2px;
+}
+
+.logo span {
+  color: var(--accent);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.stack {
+  display: grid;
+  gap: 12px;
+  margin-top: 22px;
+}
+
+.auth-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.auth-actions button {
+  flex: 1;
+}
+
+#authError {
+  color: #ff858d;
+  overflow-wrap: anywhere;
+}
+
+#app {
+  height: 100dvh;
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  padding: 20px;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  min-height: 0;
+}
+
+.brand {
+  font-size: 27px;
+  font-weight: 800;
+  padding: 5px 0;
+}
+
+.brand span {
+  color: var(--accent);
+}
+
+.userline {
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--panel2);
+  overflow-wrap: anywhere;
+}
+
+#users {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.person {
+  display: block;
+  width: 100%;
+  margin-top: 7px;
+  text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
+}
+
+.person.active {
+  background: #25233f;
+  border-color: #45406d;
+}
+
+.chat {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.chat-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 17px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+#chatName {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.call-buttons {
+  display: flex;
+  gap: 7px;
+}
+
+.call-buttons button {
+  padding: 10px 12px;
+}
+
+#messages {
+  flex: 1;
+  min-height: 0;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+}
+
+.bubble {
+  max-width: min(75%, 600px);
+  padding: 12px 15px;
+  border-radius: 17px;
+  background: var(--panel2);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.bubble.mine {
+  align-self: flex-end;
+  background: #5145a4;
+}
+
+.bubble.theirs {
+  align-self: flex-start;
+}
+
+.composer {
+  display: flex;
+  gap: 10px;
+  padding: 15px 20px;
+  border-top: 1px solid var(--border);
+}
+
+.composer input {
+  flex: 1;
+}
+
+#callPanel {
+  padding: 15px;
+  border-top: 1px solid var(--border);
+  background: var(--panel);
+}
+
+#videos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+video {
+  width: min(100%, 360px);
+  max-height: 260px;
+  background: #000;
+  border-radius: 14px;
+}
+
+#callStatus {
+  margin-bottom: 12px;
+  color: var(--muted);
+}
+
+#callActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.danger {
+  background: #c53f56;
+}
+
+#notice {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  padding: 12px 18px;
+  border-radius: 12px;
+  background: #252b3d;
+  max-width: 90%;
+  overflow-wrap: anywhere;
+  z-index: 10;
+}
+
+@media (max-width: 650px) {
+  #app {
+    grid-template-columns: 1fr;
+  }
+
+  #app:not(.in-chat) .chat {
+    display: none;
+  }
+
+  #app.in-chat .sidebar {
+    display: none;
+  }
+
+  .sidebar {
+    border-right: 0;
+  }
+
+  .chat-header {
+    padding: 12px;
+    flex-wrap: wrap;
+  }
+
+  #messages {
+    padding: 13px;
+  }
+
+  .composer {
+    padding: 10px;
+  }
+
+  .bubble {
+    max-width: 88%;
+  }
+}
+</style>
+</head>
+
+<body>
+
+<section id="auth">
+  <div class="auth-card">
+    <div class="logo">High<span>.</span></div>
+    <p class="muted">Твоя связь. Без лишнего.</p>
+
+    <form id="authForm" class="stack">
+      <input id="username"
+        placeholder="Имя пользователя"
+        minlength="3"
+        maxlength="24"
+        autocomplete="username"
+        required>
+
+      <input id="password"
+        type="password"
+        placeholder="Пароль"
+        minlength="8"
+        maxlength="128"
+        autocomplete="current-password"
+        required>
+
+      <div class="auth-actions">
+        <button type="submit" id="loginBtn">Войти</button>
+        <button type="button" id="registerBtn">
+          Создать аккаунт
+        </button>
+      </div>
+
+      <div id="authError"></div>
+    </form>
+  </div>
+</section>
+
+<section id="app" class="hidden">
+  <aside class="sidebar">
+    <div class="brand">High<span>.</span></div>
+
+    <div class="userline">
+      <div class="muted">Твой аккаунт</div>
+      <strong id="myName"></strong>
+    </div>
+
+    <input id="search" placeholder="Найти пользователя...">
+
+    <div id="users"></div>
+
+    <button id="logoutBtn"
+      style="background:#282e40">
+      Выйти из аккаунта
+    </button>
+  </aside>
+
+  <main class="chat">
+    <header class="chat-header">
+      <button id="backBtn" class="hidden"
+        style="background:#282e40">←</button>
+
+      <strong id="chatName">Выбери собеседника</strong>
+
+      <div class="call-buttons">
+        <button id="audioBtn" title="Аудиозвонок"
+          disabled>☎</button>
+        <button id="videoBtn" title="Видеозвонок"
+          disabled>▣</button>
+      </div>
+    </header>
+
+    <div id="messages">
+      <div class="muted">
+        Найди пользователя, чтобы начать общение.
+      </div>
+    </div>
+
+    <form id="composer" class="composer">
+      <input id="messageInput"
+        maxlength="4000"
+        placeholder="Напиши сообщение..."
+        autocomplete="off"
+        disabled>
+
+      <button id="sendBtn" disabled>➤</button>
+    </form>
+
+    <section id="callPanel" class="hidden">
+      <div id="callStatus">Звонок</div>
+
+      <div id="videos">
+        <video id="remoteVideo"
+          autoplay playsinline></video>
+
+        <video id="localVideo"
+          autoplay muted playsinline></video>
+      </div>
+
+      <div id="callActions">
+        <button id="acceptBtn" class="hidden">
+          Принять
+        </button>
+
+        <button id="declineBtn" class="danger hidden">
+          Отклонить
+        </button>
+
+        <button id="hangupBtn" class="danger">
+          Завершить звонок
+        </button>
+      </div>
+    </section>
+  </main>
+</section>
+
+<div id="notice" class="hidden"></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+
+let me = null;
+let socket = null;
+let activeUser = null;
+let call = null;
+let localStream = null;
+let peer = null;
+let pendingOffer = null;
+let queuedCandidates = [];
+let noticeTimer = null;
+
+const rtcConfig = {
+  iceServers: [
+    { urls: "stun:stun.l.google.com:19302" },
+    { urls: "stun:stun1.l.google.com:19302" }
+  ]
+};
+
+function showNotice(message) {
+  $("notice").textContent = message;
+  $("notice").classList.remove("hidden");
+
+  clearTimeout(noticeTimer);
+  noticeTimer = setTimeout(() => {
+    $("notice").classList.add("hidden");
+  }, 3500);
+}
+
+async function api(url, options = {}) {
+  const response = await fetch(url, {
+    credentials: "same-origin",
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options.headers
+    }
+  });
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data.error || "Ошибка запроса.");
+  }
+
+  return data;
+}
+
+function showAuth() {
+  $("auth").classList.remove("hidden");
+  $("app").classList.add("hidden");
+}
+
+function showApp() {
+  $("auth").classList.add("hidden");
+  $("app").classList.remove("hidden");
+  $("myName").textContent = me.username;
+}
+
+async function authenticate(mode) {
+  $("authError").textContent = "";
+
+  try {
+    const data = await api("/api/" + mode, {
+      method: "POST",
+      body: JSON.stringify({
+        username: $("username").value.trim(),
+        password: $("password").value
+      })
+    });
+
+    me = data.user;
+    await enterApp();
+  } catch (error) {
+    $("authError").textContent = error.message;
+  }
+}
+
+$("authForm").addEventListener("submit", event => {
+  event.preventDefault();
+  authenticate("login");
+});
+
+$("registerBtn").addEventListener("click", () => {
+  authenticate("register");
+});
+
+async function enterApp() {
+  showApp();
+
+  socket = io();
+
+  socket.on("connect_error", error => {
+    showNotice("Соединение: " + error.message);
+  });
+
+  socket.on("message:new", message => {
+    if (
+      activeUser &&
+      (
+        message.senderId === activeUser.id ||
+        message.receiverId === activeUser.id
+      )
+    ) {
+      renderMessage(message);
+    }
+  });
+
+  socket.on("call:signal", handleCallSignal);
+
+  await searchUsers("");
+}
+
+$("logoutBtn").addEventListener("click", async () => {
+  await endCall(false);
+
+  if (socket) socket.disconnect();
+
+  try {
+    await api("/api/logout", { method: "POST" });
+  } catch {}
+
+  me = null;
+  activeUser = null;
+  socket = null;
+  showAuth();
+});
+
+async function searchUsers(query) {
+  try {
+    const data = await api(
+      "/api/users?q=" + encodeURIComponent(query)
+    );
+
+    $("users").replaceChildren();
+
+    for (const user of data.users) {
+      const button = document.createElement("button");
+
+      button.className = "person" +
+        (activeUser?.id === user.id ? " active" : "");
+
+      button.textContent = "●  " + user.username;
+
+      button.addEventListener("click", () => openChat(user));
+
+      $("users").appendChild(button);
+    }
+  } catch (error) {
+    showNotice(error.message);
+  }
+}
+
+let searchTimer = null;
+
+$("search").addEventListener("input", event => {
+  clearTimeout(searchTimer);
+
+  searchTimer = setTimeout(() => {
+    searchUsers(event.target.value.trim());
+  }, 250);
+});
+
+async function openChat(user) {
+  if (call && call.userId !== user.id) {
+    showNotice("Сначала заверши текущий звонок.");
+    return;
+  }
+
+  activeUser = user;
+
+  $("app").classList.add("in-chat");
+  $("backBtn").classList.remove("hidden");
+  $("chatName").textContent = user.username;
+  $("messageInput").disabled = false;
+  $("sendBtn").disabled = false;
+  $("audioBtn").disabled = false;
+  $("videoBtn").disabled = false;
+
+  await searchUsers($("search").value.trim());
+
+  $("messages").replaceChildren();
+
+  try {
+    const data = await api("/api/messages/" + user.id);
+
+    for (const message of data.messages) {
+      renderMessage(message);
+    }
+  } catch (error) {
+    showNotice(error.message);
+  }
+
+  $("messageInput").focus();
+}
+
+$("backBtn").addEventListener("click", () => {
+  $("app").classList.remove("in-chat");
+});
+
+function renderMessage(message) {
+  if (!activeUser) return;
+
+  if (
+    message.senderId !== activeUser.id &&
+    message.receiverId !== activeUser.id
+  ) {
+    return;
+  }
+
+  const list = $("messages");
+
+  if (list.querySelector('[data-id="' + message.id + '"]')) {
+    return;
+  }
+
+  const bubble = document.createElement("div");
+
+  bubble.className = "bubble " +
+    (message.senderId === me.id ? "mine" : "theirs");
+
+  bubble.dataset.id = message.id;
+  bubble.textContent = message.body;
+
+  list.appendChild(bubble);
+  list.scrollTop = list.scrollHeight;
+}
+
+$("composer").addEventListener("submit", event => {
+  event.preventDefault();
+
+  if (!activeUser || !socket?.connected) {
+    return showNotice("Нет соединения с сервером.");
+  }
+
+  const body = $("messageInput").value.trim();
+
+  if (!body) return;
+
+  $("sendBtn").disabled = true;
+
+  socket.timeout(10000).emit("message:send", {
+    receiverId: activeUser.id,
+    body
+  }, (error, result) => {
+    $("sendBtn").disabled = false;
+
+    if (error || !result?.ok) {
+      return showNotice(
+        result?.error || "Не удалось отправить сообщение."
+      );
+    }
+
+    $("messageInput").value = "";
+    $("messageInput").focus();
+  });
+});
+
+// -----------------------------
+// Настоящие WebRTC-звонки
+// -----------------------------
+
+function sendSignal(to, type, payload = null) {
+  if (!socket?.connected) {
+    showNotice("Нет соединения для звонка.");
+    return;
+  }
+
+  socket.emit("call:signal", { to, type, payload });
+}
+
+async function getMedia(video) {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    throw new Error(
+      "Камера и микрофон недоступны. Нужен HTTPS."
+    );
+  }
+
+  return navigator.mediaDevices.getUserMedia({
+    audio: true,
+    video: video ? {
+      width: { ideal: 1280 },
+      height: { ideal: 720 }
+    } : false
+  });
+}
+
+function showCall(status) {
+  $("callPanel").classList.remove("hidden");
+  $("callStatus").textContent = status;
+}
+
+async function preparePeer() {
+  peer = new RTCPeerConnection(rtcConfig);
+
+  peer.onicecandidate = event => {
+    if (event.candidate && call) {
+      sendSignal(
+        call.userId,
+        "ice-candidate",
+        event.candidate.toJSON()
+      );
+    }
+  };
+
+  peer.ontrack = event => {
+    $("remoteVideo").srcObject = event.streams[0];
+  };
+
+  peer.onconnectionstatechange = () => {
+    if (!peer) return;
+
+    if (peer.connectionState === "connected") {
+      showCall("Соединение установлено");
+    }
+
+    if (peer.connectionState === "failed") {
+      showNotice(
+        "Не удалось соединить устройства. Может понадобиться TURN."
+      );
+    }
+  };
+
+  if (localStream) {
+    localStream.getTracks().forEach(track => {
+      peer.addTrack(track, localStream);
+    });
+
+    $("localVideo").srcObject = localStream;
+  }
+}
+
+async function startCall(video) {
+  if (!activeUser || call) return;
+
+  if (!socket?.connected) {
+    return showNotice("Нет соединения с сервером.");
+  }
+
+  const target = activeUser;
+
+  try {
+    // Сначала получаем разрешение на микрофон/камеру
+    localStream = await getMedia(video);
+
+    call = {
+      userId: target.id,
+      username: target.username,
+      video,
+      incoming: false
+    };
+
+    showCall("Вызов " + target.username + "…");
+    $("acceptBtn").classList.add("hidden");
+    $("declineBtn").classList.add("hidden");
+    $("localVideo").classList.toggle("hidden", !video);
+    $("remoteVideo").classList.toggle("hidden", !video);
+
+    await preparePeer();
+
+    const offer = await peer.createOffer();
+    await peer.setLocalDescription(offer);
+
+    sendSignal(target.id, "incoming", { video });
+    sendSignal(target.id, "offer", peer.localDescription);
+  } catch (error) {
+    await endCall(false);
+    showNotice(error.message || "Не удалось начать звонок.");
+  }
+}
+
+$("audioBtn").addEventListener("click", () => startCall(false));
+$("videoBtn").addEventListener("click", () => startCall(true));
+
+async function handleCallSignal(data) {
+  const from = String(data.from);
+
+  if (data.type === "incoming") {
+    if (call) {
+      sendSignal(from, "declined");
+      return;
+    }
+
+    call = {
+      userId: from,
+      username: data.fromUsername,
+      video: !!data.payload?.video,
+      incoming: true
+    };
+
+    pendingOffer = null;
+    queuedCandidates = [];
+
+    showCall("Входящий звонок: " + data.fromUsername);
+
+    $("acceptBtn").classList.remove("hidden");
+    $("declineBtn").classList.remove("hidden");
+    $("hangupBtn").classList.add("hidden");
+
+    $("localVideo").classList.toggle("hidden", !call.video);
+    $("remoteVideo").classList.toggle("hidden", !call.video);
+
+    return;
+  }
+
+  if (!call || call.userId !== from) return;
+
+  if (data.type === "offer") {
+    pendingOffer = data.payload;
+    return;
+  }
+
+  if (data.type === "accepted") {
+    showCall("Собеседник принял звонок");
+    return;
+  }
+
+  if (data.type === "answer") {
+    if (peer && peer.signalingState === "have-local-offer") {
+      try {
+        await peer.setRemoteDescription(data.payload);
+        await flushCandidates();
+        showCall("Соединяем устройства…");
+      } catch (error) {
+        showNotice("Ошибка подключения звонка.");
+      }
+    }
+
+    return;
+  }
+
+  if (data.type === "ice-candidate") {
+    if (peer?.remoteDescription) {
+      try {
+        await peer.addIceCandidate(data.payload);
+      } catch {}
+    } else {
+      queuedCandidates.push(data.payload);
+    }
+
+    return;
+  }
+
+  if (data.type === "declined") {
+    await endCall(false);
+    showNotice("Звонок отклонён.");
+    return;
+  }
+
+  if (data.type === "ended") {
+    await endCall(false);
+    showNotice("Звонок завершён.");
+  }
+}
+
+async function flushCandidates() {
+  if (!peer?.remoteDescription) return;
+
+  for (const candidate of queuedCandidates) {
+    try {
+      await peer.addIceCandidate(candidate);
+    } catch {}
+  }
+
+  queuedCandidates = [];
+}
+
+$("acceptBtn").addEventListener("click", async () => {
+  if (!call?.incoming) return;
+
+  try {
+    const current = call;
+
+    localStream = await getMedia(current.video);
+
+    await preparePeer();
+
+    if (!pendingOffer) {
+      throw new Error("Предложение звонка ещё не получено.");
+    }
+
+    await peer.setRemoteDescription(pendingOffer);
+    await flushCandidates();
+
+    const answer = await peer.createAnswer();
+    await peer.setLocalDescription(answer);
+
+    sendSignal(current.userId, "accepted");
+    sendSignal(current.userId, "answer", peer.localDescription);
+
+    call.incoming = false;
+
+    $("acceptBtn").classList.add("hidden");
+    $("declineBtn").classList.add("hidden");
+    $("hangupBtn").classList.remove("hidden");
+
+    showCall("Соединяем устройства…");
+  } catch (error) {
+    await endCall(true);
+    showNotice(error.message || "Не удалось принять звонок.");
+  }
+});
+
+$("declineBtn").addEventListener("click", () => endCall(true));
+$("hangupBtn").addEventListener("click", () => endCall(true));
+
+async function endCall(notify) {
+  const oldCall = call;
+
+  if (notify && oldCall) {
+    sendSignal(oldCall.userId, "ended");
+  }
+
+  call = null;
+  pendingOffer = null;
+  queuedCandidates = [];
+
+  if (peer) {
+    peer.ontrack = null;
+    peer.onicecandidate = null;
+    peer.close();
+    peer = null;
+  }
+
+  if (localStream) {
+    localStream.getTracks().forEach(track => track.stop());
+    localStream = null;
+  }
+
+  $("localVideo").srcObject = null;
+  $("remoteVideo").srcObject = null;
+
+  $("callPanel").classList.add("hidden");
+  $("acceptBtn").classList.add("hidden");
+  $("declineBtn").classList.add("hidden");
+  $("hangupBtn").classList.remove("hidden");
+}
+
+(async function init() {
+  try {
+    const data = await api("/api/me");
+    me = data.user;
+    await enterApp();
+  } catch {
+    showAuth();
+  }
+})();
+</script>
+</body>
+</html>
